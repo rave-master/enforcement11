@@ -461,19 +461,11 @@
     }
 
     tbody tr {
-      cursor: pointer;
       transition: all 0.2s ease;
     }
 
     tbody tr:hover {
-      background: #b2dfdb;
-      transform: scale(1.01);
-      box-shadow: 0 2px 8px rgba(0, 121, 107, 0.2);
-    }
-
-    tbody tr:active {
-      background: #80cbc4;
-      transform: scale(0.99);
+      background: #e0f2f1;
     }
 
     tbody tr:last-child td {
@@ -583,6 +575,35 @@
       margin: 0;
       font-size: 1.5rem;
       font-weight: 700;
+    }
+
+    .modal-header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex: 1;
+    }
+
+    .generate-report-btn {
+      background: white;
+      color: #004d40;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+    }
+
+    .generate-report-btn:hover {
+      background: #e0f2f1;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     .close {
@@ -887,6 +908,17 @@
         font-size: 1.25rem;
       }
 
+      .modal-header-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+
+      .generate-report-btn {
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+      }
+
       .modal-body {
         padding: 1rem;
       }
@@ -1130,13 +1162,25 @@
     </table>
    </div>
    <div class="pagination" id="pagination"></div>
-  </div><!-- Modal -->
-  <div id="detailModal" class="modal">
+  </div><!-- Details Modal -->
+  <div id="detailsModal" class="modal">
    <div class="modal-content">
     <div class="modal-header">
-     <h2 id="modalTitle">Record Details</h2><button class="close" onclick="closeModal()">×</button>
+     <div class="modal-header-left">
+      <h2 id="modalTitle">Record Details</h2><button class="generate-report-btn" onclick="generateReportFromModal()"> 📋 Generate Spot Report </button>
+     </div><button class="close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
+   </div>
+  </div><!-- Report Modal -->
+  <div id="reportModal" class="modal">
+   <div class="modal-content" style="max-width: 900px;">
+    <div class="modal-header">
+     <h2>📋 Spot Report</h2><button class="close" onclick="closeReportModal()">×</button>
+    </div>
+    <div class="modal-body" id="reportBody" style="font-family: 'Courier New', monospace; line-height: 1.8;"></div>
+    <div style="padding: 1.5rem; background: #f5f5f5; display: flex; gap: 1rem; justify-content: flex-end; border-top: 2px solid #e0e0e0;"><button onclick="copyReport()" style="padding: 0.75rem 1.5rem; background: #00796b; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;"> 📋 Copy Report </button> <button onclick="printReport()" style="padding: 0.75rem 1.5rem; background: #004d40; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;"> 🖨️ Print Report </button>
+    </div>
    </div>
   </div>
   <script>
@@ -1442,6 +1486,68 @@
       }, 250);
     }
 
+    let currentModalData = null;
+
+    function openModal(rowData) {
+      currentModalData = rowData;
+      const modalBody = document.getElementById('modalBody');
+      
+      let detailsHtml = '';
+      
+      Object.keys(rowData).forEach(key => {
+        let value = rowData[key];
+        
+        if (key.toLowerCase() === 'location') {
+          const coords = value.split(',');
+          if (coords.length === 2) {
+            const lat = coords[0].trim();
+            const lng = coords[1].trim();
+            value = `${lat}, ${lng} <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer" style="color: #00796b; text-decoration: none; font-weight: 600;">🗺️ View on Map</a>`;
+          }
+        }
+        
+        if (key.toLowerCase().includes('timestamp') && value) {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            const options = {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            };
+            value = date.toLocaleString('en-US', options);
+          }
+        }
+        
+        value = formatPhotoLinks(value, key);
+        
+        detailsHtml += `
+          <div class="detail-item">
+            <div class="detail-label">${key}</div>
+            <div class="detail-value">${value || 'N/A'}</div>
+          </div>
+        `;
+      });
+      
+      modalBody.innerHTML = detailsHtml;
+      document.getElementById('detailsModal').style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      document.getElementById('detailsModal').style.display = 'none';
+      document.body.style.overflow = 'auto';
+    }
+
+    function generateReportFromModal() {
+      if (currentModalData) {
+        closeModal();
+        openReportModal(currentModalData);
+      }
+    }
+
     window.openModalFromData = function(rowData) {
       openModal(rowData);
     };
@@ -1451,6 +1557,9 @@
         openModal(allData[index]);
       }
     };
+
+    window.closeModal = closeModal;
+    window.generateReportFromModal = generateReportFromModal;
 
     function renderTable(data, page = 1) {
       const headerRow = document.getElementById('headerRow');
@@ -1473,8 +1582,7 @@
       const pageData = data.slice(startIdx, endIdx);
 
       bodyRows.innerHTML = pageData.map((row, idx) => {
-        const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
-        return '<tr onclick="openModalFromData(' + rowData + ')">' + 
+        return '<tr>' + 
           keys.map(key => {
             let value = row[key] || '';
             
@@ -1754,32 +1862,153 @@
       }).join(' ');
     }
 
-    function openModal(rowData) {
-      const modalBody = document.getElementById('modalBody');
-      const keys = Object.keys(rowData);
+    function generateSpotReport(rowData) {
+      const getValue = (key) => rowData[key] || 'Not specified';
       
-      modalBody.innerHTML = keys.map(key => `
-        <div class="detail-item">
-          <div class="detail-label">${key}</div>
-          <div class="detail-value">${formatPhotoLinks(rowData[key], key)}</div>
-        </div>
-      `).join('');
+      const report = `SPOT REPORT
 
-      document.getElementById('detailModal').style.display = 'block';
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ACCUSED/OWNER:
+  Name: ${getValue('Accused/Owner')}
+
+VIOLATION/S:
+  ${getValue('Violation/s')}
+
+APPREHENDING OFFICE:
+  ${getValue('Apprehending Office')}
+
+PLACE OF APPREHENSION:
+  Location: ${getValue('Place of Apprehension')}
+
+DATE & TIME OF APPREHENSION:
+  Date: ${getValue('Date of Apprehension')}
+  Time: ${getValue('Time of Apprehension')}
+
+KIND OF IMPLEMENTS/EQUIPMENT SEIZED:
+  ${getValue('Kind of Implements/Equipment Seized')}
+
+ESTIMATED VALUE OF IMPLEMENTS:
+  Total Value: ₱${getValue('Estimated Value of Implements (Php)')}
+
+KIND OF FOREST PRODUCT:
+  Forest Products Seized: ${getValue('Kind of Forest Product')}
+
+VOLUME OF FOREST PRODUCTS:
+  Board Feet: ${getValue('Volume of Forest Products (bd.ft)')} bd.ft
+  Cubic Meters: ${getValue('Volume of Forest Products (cu.m)')} cu.m
+
+VALUE OF FOREST PRODUCT:
+  Total Value: ₱${getValue('Value of Forest Product (Php)')}
+
+VALUE OF CONVEYANCE:
+  Vehicle: ${getValue('Conveyance')}
+  Plate Number: ${getValue('Plate Number')}
+  Value: ${getValue('Value of Conveyance')}
+
+DOCKET NUMBER:
+  Docket No.: ${getValue('Docket Number')}
+
+NAME OF PROSECUTOR:
+  Prosecutor: ${getValue('Name of Prosecutor')}
+
+STATUS OF CASE:
+  ${getValue('Status')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SUMMARY:
+On ${getValue('Date of Apprehension')}, ${getValue('Accused/Owner')} was apprehended by ${getValue('Apprehending Office')} in ${getValue('Place of Apprehension')} for ${getValue('Violation/s')}. Authorities seized implements valued at ₱${getValue('Estimated Value of Implements (Php)')} and confiscated ${getValue('Volume of Forest Products (bd.ft)')} bd.ft (${getValue('Volume of Forest Products (cu.m)')} cu.m) of ${getValue('Kind of Forest Product')} valued at ₱${getValue('Value of Forest Product (Php)')}. The accused's ${getValue('Conveyance')} (Plate Number: ${getValue('Plate Number')}) was also involved in the incident. The case has been filed under Docket No. ${getValue('Docket Number')} with ${getValue('Name of Prosecutor')}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Report Generated: ${new Date().toLocaleString('en-US', { 
+  year: 'numeric', 
+  month: 'long', 
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+})}
+`;
+      
+      return report;
+    }
+
+    function openReportModal(rowData) {
+      const reportBody = document.getElementById('reportBody');
+      const report = generateSpotReport(rowData);
+      
+      reportBody.innerHTML = `<pre style="white-space: pre-wrap; margin: 0; font-size: 0.9rem;">${report}</pre>`;
+      
+      window.currentReport = report;
+      document.getElementById('reportModal').style.display = 'block';
       document.body.style.overflow = 'hidden';
     }
 
-    function closeModal() {
-      document.getElementById('detailModal').style.display = 'none';
+    function closeReportModal() {
+      document.getElementById('reportModal').style.display = 'none';
       document.body.style.overflow = 'auto';
     }
 
-    window.closeModal = closeModal;
+    function copyReport() {
+      if (window.currentReport) {
+        navigator.clipboard.writeText(window.currentReport).then(() => {
+          const btn = event.target;
+          const originalText = btn.innerHTML;
+          btn.innerHTML = '✅ Copied!';
+          btn.style.background = '#2e7d32';
+          
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.style.background = '#00796b';
+          }, 2000);
+        });
+      }
+    }
+
+    function printReport() {
+      if (window.currentReport) {
+        const printWindow = window.open('', '', 'width=800,height=600');
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Spot Report</title>
+              <style>
+                body {
+                  font-family: 'Courier New', monospace;
+                  padding: 2rem;
+                  line-height: 1.8;
+                }
+                pre {
+                  white-space: pre-wrap;
+                  margin: 0;
+                }
+              </style>
+            </head>
+            <body>
+              <pre>${window.currentReport}</pre>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    }
+
+    window.openReportModal = openReportModal;
+    window.closeReportModal = closeReportModal;
+    window.copyReport = copyReport;
+    window.printReport = printReport;
 
     window.onclick = function(event) {
-      const modal = document.getElementById('detailModal');
-      if (event.target === modal) {
+      const detailsModal = document.getElementById('detailsModal');
+      const reportModal = document.getElementById('reportModal');
+      if (event.target === detailsModal) {
         closeModal();
+      }
+      if (event.target === reportModal) {
+        closeReportModal();
       }
     };
 
@@ -1894,11 +2123,11 @@
 
     loadData();
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a2d3084d355fee1',t:'MTc2Mzg2NDQ0OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
-  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a2f257b85f9fee1',t:'MTc2Mzg4NDk2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
 
-  
-  <script>
+ </script>
+ 
+ <script>
   document.addEventListener("contextmenu", e => e.preventDefault());
   document.onkeydown = function(e) {
     if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 'I'.charCodeAt(0))) {
@@ -1908,6 +2137,5 @@
 </script>
 
 
-  
-  </body>
+</body>
 </html>
